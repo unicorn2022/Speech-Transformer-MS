@@ -62,8 +62,7 @@ def spec_augment(spec: np.ndarray,
         spec[:, t0:t0 + num_frames_to_mask] = value
     return spec
 
-
-class AiShellDataset:
+class AiShellDataset():
     def __init__(self, args, split):
         self.args = args
         with open(cfg.pickle_file, 'rb') as file:

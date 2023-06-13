@@ -66,12 +66,12 @@ def train_net(args):
     logger = get_logger()
 
     #Move to GPU, if available
-    # model = model.to(device)
+    model = model.to(cfg.device)
     
     # Custom dataloaders
     train_dataset = AiShellDataset(args, 'train')
     train_loader = ds.GeneratorDataset(train_dataset, column_names=["feature", "trn"], shuffle=True)
-    train_loader = train_loader.batch(args.batch_size, drop_remainder=True)
+    train_loader = train_loader.batch(batch_size=args.batch_size, drop_remainder=True)
     train_loader = train_loader.map(input_columns=["feature"], operations=[T.PadEnd([cfg.input_dim], 0)])
     train_loader = train_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
     
