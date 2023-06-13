@@ -10,6 +10,7 @@ from mindspore import context
 from mindspore.train.callback import ModelCheckpoint, CheckpointConfig, LossMonitor
 from mindspore.train.serialization import load_checkpoint, load_param_into_net
 from mindspore.nn.optim import Adam
+from mindspore.dataset import transforms as T
 from mindspore.dataset import GeneratorDataset
 from mindspore.dataset.vision import Inter
 from mindspore.train.summary import SummaryRecord
@@ -71,14 +72,14 @@ def train_net(args):
     train_dataset = AiShellDataset(args, 'train')
     train_loader = ds.GeneratorDataset(train_dataset, column_names=["feature", "trn"], shuffle=True)
     train_loader = train_loader.batch(args.batch_size, drop_remainder=True)
-    train_loader = train_loader.map(input_columns=["feature"], operations=T.PadEnd([32, -1], 0))
-    train_loader = train_loader.map(input_columns=["feature"], operations=T.TypeCast(mstype.float32))
+    train_loader = train_loader.map(input_columns=["feature"], operations=[T.PadEnd([32], 0)])
+    train_loader = train_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
     
     valid_dataset = AiShellDataset(args, 'dev')
-    valid_loader = ds.GeneratorDataset(train_dataset, column_names=["feature", "trn"], shuffle=False)
+    valid_loader = ds.GeneratorDataset(valid_dataset, column_names=["feature", "trn"], shuffle=False)
     valid_loader = train_loader.batch(args.batch_size, drop_remainder=True)
-    valid_loader = train_loader.map(input_columns=["feature"], operations=T.PadEnd([32, -1], 0))
-    valid_loader = train_loader.map(input_columns=["feature"], operations=T.TypeCast(mstype.float32))
+    valid_loader = train_loader.map(input_columns=["feature"], operations=[T.PadEnd([32], 0)])
+    valid_loader = train_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
 
     # Epochs
     for epoch in range(start_epoch, args.epochs):
@@ -116,7 +117,7 @@ def train_net(args):
 
 
 def train(train_loader, model, optimizer, epoch, logger):
-    model.train()  # train mode (dropout and batchnorm is used)
+    model.set_train(True)  # train mode (dropout and batchnorm is used)
 
     losses = AverageMeter()
 
