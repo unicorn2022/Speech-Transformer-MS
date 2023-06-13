@@ -1,4 +1,4 @@
-import mindspore.numpy as np
+import numpy as np
 import mindspore
 import mindspore.nn as nn
 import mindspore.ops as ops
