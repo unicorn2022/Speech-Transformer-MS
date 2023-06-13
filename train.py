@@ -72,14 +72,14 @@ def train_net(args):
     train_dataset = AiShellDataset(args, 'train')
     train_loader = ds.GeneratorDataset(train_dataset, column_names=["feature", "trn"], shuffle=True)
     train_loader = train_loader.batch(args.batch_size, drop_remainder=True)
-    train_loader = train_loader.map(input_columns=["feature"], operations=[T.PadEnd([32], 0)])
+    train_loader = train_loader.map(input_columns=["feature"], operations=[T.PadEnd([cfg.input_dim], 0)])
     train_loader = train_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
     
     valid_dataset = AiShellDataset(args, 'dev')
     valid_loader = ds.GeneratorDataset(valid_dataset, column_names=["feature", "trn"], shuffle=False)
-    valid_loader = train_loader.batch(args.batch_size, drop_remainder=True)
-    valid_loader = train_loader.map(input_columns=["feature"], operations=[T.PadEnd([32], 0)])
-    valid_loader = train_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
+    valid_loader = valid_loader.batch(args.batch_size, drop_remainder=True)
+    valid_loader = valid_loader.map(input_columns=["feature"], operations=[T.PadEnd([cfg.input_dim], 0)])
+    valid_loader = valid_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
 
     # Epochs
     for epoch in range(start_epoch, args.epochs):
