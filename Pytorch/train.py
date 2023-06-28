@@ -15,6 +15,7 @@ from utils import parse_args, save_checkpoint, AverageMeter, get_logger
 
 
 def train_net(args):
+    print("vocab_size: ", vocab_size)
     torch.manual_seed(7)
     np.random.seed(7)
     checkpoint = args.checkpoint
