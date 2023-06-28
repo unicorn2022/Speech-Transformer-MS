@@ -15,7 +15,22 @@ from .utils import get_attn_key_pad_mask, get_attn_pad_mask, get_non_pad_mask, g
 
 
 class Decoder(nn.Module):
-    ''' A decoder model with self attention mechanism. '''
+    '''
+    Transformer的解码器, 包含自注意力 + 编码器-解码器注意力 + 前馈网络
+    :param sos_id:          <start_of_seq>的id
+    :param eos_id:          <end_of_seq>的id
+    :param n_tgt_vocab:     目标语言词表的大小
+    :param d_word_vec:      词向量的维度
+    :param n_layers:        编码器的层数
+    :param n_head:          多头注意力的向下投影的次数
+    :param d_k:             多头注意力中Q、K的维度
+    :param d_v:             多头注意力中V的维度
+    :param d_model:         词向量的维度
+    :param d_inner:         前馈网络的维度
+    :param dropout:         dropout的概率
+    :param tgt_emb_prj_weight_sharing: 是否共享目标词向量层和线性层的权重
+    :param pe_maxlen:       位置编码的最大长度
+    '''
 
     def __init__(
             self, sos_id=0, eos_id=1,
@@ -25,7 +40,8 @@ class Decoder(nn.Module):
             tgt_emb_prj_weight_sharing=True,
             pe_maxlen=5000):
         super(Decoder, self).__init__()
-        # parameters
+        
+        # 超参数
         self.sos_id = sos_id  # Start of Sentence
         self.eos_id = eos_id  # End of Sentence
         self.n_tgt_vocab = n_tgt_vocab
@@ -40,87 +56,117 @@ class Decoder(nn.Module):
         self.tgt_emb_prj_weight_sharing = tgt_emb_prj_weight_sharing
         self.pe_maxlen = pe_maxlen
 
+        # Embedding层
         self.tgt_word_emb = nn.Embedding(n_tgt_vocab, d_word_vec)
+        
+        
+        # 位置编码层
         self.positional_encoding = PositionalEncoding(d_model, max_len=pe_maxlen)
         self.dropout = nn.Dropout(dropout)
 
+        # 解码器层
         self.layer_stack = nn.ModuleList([
             DecoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
 
+        # 全连接层, 初始化权重满足 XavierUniform 分布
         self.tgt_word_prj = nn.Linear(d_model, n_tgt_vocab, bias=False)
         nn.init.xavier_normal_(self.tgt_word_prj.weight)
 
+        # 是否共享目标词向量层和全连接层的权重
         if tgt_emb_prj_weight_sharing:
-            # Share the weight matrix between target word embedding & the final logit dense layer
+            # 共享目标词向量层和全连接层的权重
             self.tgt_word_prj.weight = self.tgt_word_emb.weight
+            # 权重缩放比为 1/sqrt(d_model)
             self.x_logit_scale = (d_model ** -0.5)
         else:
             self.x_logit_scale = 1.
 
     def preprocess(self, padded_input):
-        """Generate decoder input and output label from padded_input
-        Add <sos> to decoder input, and add <eos> to decoder output label
-        """
-        ys = [y[y != IGNORE_ID] for y in padded_input]  # parse padded ys
-        # prepare input and output word sequences with sos/eos IDs
+        '''
+        预处理输入序列 padded_input
+            添加 <sos> 到 decoder 的输入, 添加 <eos> 到 decoder 的输出标签
+        :param padded_input:    N x Ti, 经过padding后的输入序列
+        :return ys_in_pad:      N x To, 填充<sos>后的输入序列
+        :return ys_out_pad:     N x To, 填充IGNORE_ID后的输出序列
+        '''
+        # 删除padded_input中需要忽略的数据
+        ys = [y[y != IGNORE_ID] for y in padded_input]
+        
+        # input中的每个句子添加<sos>，output中的每个句子添加<eos>
         eos = ys[0].new([self.eos_id])
         sos = ys[0].new([self.sos_id])
         ys_in = [torch.cat([sos, y], dim=0) for y in ys]
         ys_out = [torch.cat([y, eos], dim=0) for y in ys]
-        # padding for ys with -1
-        # pys: utt x olen
+        
+        # 将input中的空白位置填充为 <eos>
         ys_in_pad = pad_list(ys_in, self.eos_id)
+        # 将output中的空白位置填充为 IGNORE_ID
         ys_out_pad = pad_list(ys_out, IGNORE_ID)
+        
         assert ys_in_pad.size() == ys_out_pad.size()
+        
         return ys_in_pad, ys_out_pad
 
     def forward(self, padded_input, encoder_padded_outputs,
                 encoder_input_lengths, return_attns=False):
-        """
-        Args:
-            padded_input: N x To
-            encoder_padded_outputs: N x Ti x H
-        Returns:
-        """
+        '''
+        :param padded_input:            N x To, 经过padding后的输入序列
+        :param encoder_padded_outputs:  N x Ti x H, 编码器的输出
+        :param encoder_input_lengths:   N, 编码器输入序列的长度
+        :param return_attns:            是否返回注意力权重
+        :return: pred:                  N x To x V, 预测的输出序列
+        :return: gold:                  N x To, 真实的输出序列
+        '''
         dec_slf_attn_list, dec_enc_attn_list = [], []
 
-        # Get Deocder Input and Output
+        # 获取预处理后的decoder的输入和输出序列
         ys_in_pad, ys_out_pad = self.preprocess(padded_input)
 
-        # Prepare masks
+        # 计算由于由于padding产生的mask
         non_pad_mask = get_non_pad_mask(ys_in_pad, pad_idx=self.eos_id)
 
+        # 计算自注意力的mask = 由于时间产生的mask + 由于padding产生的mask
         slf_attn_mask_subseq = get_subsequent_mask(ys_in_pad)
-        slf_attn_mask_keypad = get_attn_key_pad_mask(seq_k=ys_in_pad,
-                                                     seq_q=ys_in_pad,
-                                                     pad_idx=self.eos_id)
+        slf_attn_mask_keypad = get_attn_key_pad_mask(
+            seq_k=ys_in_pad,
+            seq_q=ys_in_pad,
+            pad_idx=self.eos_id
+        )
         slf_attn_mask = (slf_attn_mask_keypad + slf_attn_mask_subseq).gt(0)
 
+        # 输出序列的长度
         output_length = ys_in_pad.size(1)
-        dec_enc_attn_mask = get_attn_pad_mask(encoder_padded_outputs,
-                                              encoder_input_lengths,
-                                              output_length)
+        
+        # 计算编码器-解码器注意力的mask
+        dec_enc_attn_mask = get_attn_pad_mask(
+            encoder_padded_outputs,
+            encoder_input_lengths,
+            output_length
+        )
 
-        # Forward
-        dec_output = self.dropout(self.tgt_word_emb(ys_in_pad) * self.x_logit_scale +
-                                  self.positional_encoding(ys_in_pad))
-
+        ### 前向计算
+        # 将输入通过 Embedding 和 PositionalEncoding
+        dec_output = self.dropout(
+            self.tgt_word_emb(ys_in_pad) * self.x_logit_scale +
+            self.positional_encoding(ys_in_pad)
+        )
+        # 通过N个Decoder层
         for dec_layer in self.layer_stack:
             dec_output, dec_slf_attn, dec_enc_attn = dec_layer(
                 dec_output, encoder_padded_outputs,
                 non_pad_mask=non_pad_mask,
                 slf_attn_mask=slf_attn_mask,
                 dec_enc_attn_mask=dec_enc_attn_mask)
-
+            # 记录 attention 权重
             if return_attns:
                 dec_slf_attn_list += [dec_slf_attn]
                 dec_enc_attn_list += [dec_enc_attn]
 
-        # before softmax
+        # 经过全连接层
         seq_logit = self.tgt_word_prj(dec_output)
 
-        # Return
+        # 返回: 预测结果pred、Decoder的输出gold
         pred, gold = seq_logit, ys_out_pad
 
         if return_attns:
@@ -128,15 +174,14 @@ class Decoder(nn.Module):
         return pred, gold
 
     def recognize_beam(self, encoder_outputs, char_list, args):
-        """Beam search, decode one utterence now.
-        Args:
-            encoder_outputs: T x H
-            char_list: list of character
-            args: args.beam
-        Returns:
-            nbest_hyps:
-        """
-        # search params
+        '''
+        使用beam search算法生成目标序列
+        :param encoder_outputs:     T x H, 编码器的输出
+        :param char_list:           字典列表
+        :param args:                参数
+        :return: nbest_hyps:        n个最优预测结果
+        '''
+        # 参数
         beam = args.beam_size
         nbest = args.nbest
         if args.decode_max_len == 0:
@@ -146,53 +191,47 @@ class Decoder(nn.Module):
 
         encoder_outputs = encoder_outputs.unsqueeze(0)
 
-        # prepare sos
+        # 初始化输入序列为: [<sos>]
         ys = torch.ones(1, 1).fill_(self.sos_id).type_as(encoder_outputs).long()
 
         # yseq: 1xT
+        # 初始化预测结果: score=0.0, yseq=[<sos>]
         hyp = {'score': 0.0, 'yseq': ys}
         hyps = [hyp]
         ended_hyps = []
 
+        # 重复执行最多 maxlen 次预测
         for i in range(maxlen):
             hyps_best_kept = []
             for hyp in hyps:
+                # 获取当前已经预测出来的序列yseq:  1 x i
                 ys = hyp['yseq']  # 1 x i
-                # last_id = ys.cpu().numpy()[0][-1]
-                # freq = bigram_freq[last_id]
-                # freq = torch.log(torch.from_numpy(freq))
-                # # print(freq.dtype)
-                # freq = freq.type(torch.float).to(device)
-                # print(freq.dtype)
-                # print('freq.size(): ' + str(freq.size()))
-                # print('freq: ' + str(freq))
-                # -- Prepare masks
+                
+                # 计算由于由于padding产生的mask: 1xix1
                 non_pad_mask = torch.ones_like(ys).float().unsqueeze(-1)  # 1xix1
                 slf_attn_mask = get_subsequent_mask(ys)
 
-                # -- Forward
+                ### Decoder的前向计算
+                # 将输入通过 Embedding 和 PositionalEncoding
                 dec_output = self.dropout(
                     self.tgt_word_emb(ys) * self.x_logit_scale +
                     self.positional_encoding(ys))
-
+                # 通过N个Decoder层
                 for dec_layer in self.layer_stack:
                     dec_output, _, _ = dec_layer(
                         dec_output, encoder_outputs,
                         non_pad_mask=non_pad_mask,
                         slf_attn_mask=slf_attn_mask,
                         dec_enc_attn_mask=None)
-
+                # 经过全连接层
                 seq_logit = self.tgt_word_prj(dec_output[:, -1])
-                # local_scores = F.log_softmax(seq_logit, dim=1)
+                # 经过softmax层, 得到当前时刻的输出结果
                 local_scores = F.log_softmax(seq_logit, dim=1)
-                # print('local_scores.size(): ' + str(local_scores.size()))
-                # local_scores += freq
-                # print('local_scores: ' + str(local_scores))
 
-                # topk scores
-                local_best_scores, local_best_ids = torch.topk(
-                    local_scores, beam, dim=1)
+                # 得到前k个scores, 以及对应的预测结果
+                local_best_scores, local_best_ids = torch.topk(local_scores, beam, dim=1)
 
+                # 将当前时刻的预测结果与之前的预测结果拼接起来
                 for j in range(beam):
                     new_hyp = {}
                     new_hyp['score'] = hyp['score'] + local_best_scores[0, j]
@@ -208,13 +247,14 @@ class Decoder(nn.Module):
             # end for hyp in hyps
             hyps = hyps_best_kept
 
-            # add eos in the final loop to avoid that there are no ended hyps
+            # 如果进行了maxlen次预测, 则向预测结果中添加<eos>, 防止预测结果没有终结符
             if i == maxlen - 1:
                 for hyp in hyps:
                     hyp['yseq'] = torch.cat([hyp['yseq'],
                                              torch.ones(1, 1).fill_(self.eos_id).type_as(encoder_outputs).long()],
                                             dim=1)
 
+            # 添加已经预测出来的序列到ended_hyps中
             # add ended hypothes to a final list, and removed them from current hypothes
             # (this will be a probmlem, number of hyps < beam)
             remained_hyps = []
@@ -225,43 +265,57 @@ class Decoder(nn.Module):
                     remained_hyps.append(hyp)
 
             hyps = remained_hyps
-            # if len(hyps) > 0:
-            #     print('remeined hypothes: ' + str(len(hyps)))
-            # else:
-            #     print('no hypothesis. Finish decoding.')
-            #     break
-            #
-            # for hyp in hyps:
-            #     print('hypo: ' + ''.join([char_list[int(x)]
-            #                               for x in hyp['yseq'][0, 1:]]))
-        # end for i in range(maxlen)
+        
+        # 根据score对预测结果进行排序
         nbest_hyps = sorted(ended_hyps, key=lambda x: x['score'], reverse=True)[
                      :min(len(ended_hyps), nbest)]
+        
         # compitable with LAS implementation
+        # 将结果转换为list
         for hyp in nbest_hyps:
             hyp['yseq'] = hyp['yseq'][0].cpu().numpy().tolist()
         return nbest_hyps
 
 
 class DecoderLayer(nn.Module):
-    ''' Compose with three layers '''
+    '''
+    Decoder 层 = Self-Attention 层 + Encoder-Attention 层 + PositionwiseFeedForward 层
+    :param d_model:         词向量的维度
+    :param d_inner:         前馈网络的维度
+    :param n_head:          多头注意力的向下投影的次数
+    :param d_k:             多头注意力中Q、K的维度
+    :param d_v:             多头注意力中V的维度
+    :param dropout:         dropout的概率
+    '''
 
     def __init__(self, d_model, d_inner, n_head, d_k, d_v, dropout=0.1):
         super(DecoderLayer, self).__init__()
+        # 自注意力层
         self.slf_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
+        # 编码器-解码器注意力层
         self.enc_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
+        # 前馈全连接层
         self.pos_ffn = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
 
     def forward(self, dec_input, enc_output, non_pad_mask=None, slf_attn_mask=None, dec_enc_attn_mask=None):
+        # 将解码器的输入通过自注意力层
         dec_output, dec_slf_attn = self.slf_attn(
             dec_input, dec_input, dec_input, mask=slf_attn_mask)
+        
+        # 应用由于padding产生的mask
         dec_output *= non_pad_mask
 
+        # 通过编码器-解码器注意力层
         dec_output, dec_enc_attn = self.enc_attn(
             dec_output, enc_output, enc_output, mask=dec_enc_attn_mask)
+        
+        # 使用由于padding产生的mask
         dec_output *= non_pad_mask
 
+        # 通过前馈全连接层
         dec_output = self.pos_ffn(dec_output)
+        
+        # 使用由于padding产生的mask
         dec_output *= non_pad_mask
 
         return dec_output, dec_slf_attn, dec_enc_attn

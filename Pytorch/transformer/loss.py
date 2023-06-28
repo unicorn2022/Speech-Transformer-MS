@@ -5,10 +5,10 @@ from config import IGNORE_ID
 
 
 def cal_performance(pred, gold, smoothing=0.0):
-    """Calculate cross entropy loss, apply label smoothing if needed.
-    Args:
-        pred: N x T x C, score before softmax
-        gold: N x T
+    """
+    计算交叉熵损失函数, 如果需要则应用标签平滑
+    :param pred: N x T x C, score before softmax
+    :param gold: N x T
     """
 
     pred = pred.view(-1, pred.size(2))
@@ -25,16 +25,16 @@ def cal_performance(pred, gold, smoothing=0.0):
 
 
 def cal_loss(pred, gold, smoothing=0.0):
-    """Calculate cross entropy loss, apply label smoothing if needed.
+    """
+    计算交叉熵损失函数, 如果需要则应用标签平滑
     """
 
     if smoothing > 0.0:
         eps = smoothing
         n_class = pred.size(1)
 
-        # Generate one-hot matrix: N x C.
-        # Only label position is 1 and all other positions are 0
-        # gold include -1 value (IGNORE_ID) and this will lead to assert error
+        # 生成 N x C 的one-hot 矩阵: 只有标签位置是1, 所有其他位置都是0
+        # gold包含-1值（IGNORE_ID）, 这将导致 assert error
         gold_for_scatter = gold.ne(IGNORE_ID).long() * gold
         one_hot = torch.zeros_like(pred).scatter(1, gold_for_scatter.view(-1, 1), 1)
         one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / n_class
@@ -45,8 +45,10 @@ def cal_loss(pred, gold, smoothing=0.0):
         loss = -(one_hot * log_prb).sum(dim=1)
         loss = loss.masked_select(non_pad_mask).sum() / n_word
     else:
-        loss = F.cross_entropy(pred, gold,
-                               ignore_index=IGNORE_ID,
-                               reduction='elementwise_mean')
+        loss = F.cross_entropy(
+            pred, gold,
+            ignore_index=IGNORE_ID,
+            reduction='elementwise_mean'
+        )
 
     return loss

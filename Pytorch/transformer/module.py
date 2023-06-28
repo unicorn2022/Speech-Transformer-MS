@@ -6,36 +6,50 @@ import torch.nn.functional as F
 
 
 class PositionalEncoding(nn.Module):
-    """Implement the positional encoding (PE) function.
-    PE(pos, 2i)   = sin(pos/(10000^(2i/dmodel)))
-    PE(pos, 2i+1) = cos(pos/(10000^(2i/dmodel)))
-    """
+    '''
+    实现Position Encoding函数
+        PE(pos, 2i)   = sin(pos / (10000^(2i/d_model)))
+        PE(pos, 2i+1) = cos(pos / (10000^(2i/d_model)))
+    使用sin/cos的优点:
+        1.泛化能力较强
+        2.具有对称性
+        3.具有唯一性: 每个位置的embedding是确定的
+    :param d_model: embedding向量的维数
+    :param max_len: 序列的最大长度
+    '''
 
     def __init__(self, d_model, max_len=5000):
         super(PositionalEncoding, self).__init__()
-        # Compute the positional encodings once in log space.
+        # 位置编码矩阵 = pos * div_term
         pe = torch.zeros(max_len, d_model, requires_grad=False)
+        
+        # 构造 pos 矩阵: max_len × 1列向量, 值为 0 ~ max_len-1
         position = torch.arange(0, max_len).unsqueeze(1).float()
+        # 构造div_term矩阵: 1 × d_model行向量, 值为 10000^(2i/d_model)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() *
                              -(math.log(10000.0) / d_model))
+        # 计算位置编码
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
+        # 扩展一维, 用于一个 batch 的训练
         pe = pe.unsqueeze(0)
+        
+        # 将 pe_embedding_table保存下来, 并设置为不可学习参数
         self.register_buffer('pe', pe)
 
     def forward(self, input):
-        """
-        Args:
-            input: N x T x D
-        """
+        '''
+        :param input: N x T x D
+        '''
         length = input.size(1)
         return self.pe[:, :length]
 
 
 class PositionwiseFeedForward(nn.Module):
-    """Implements position-wise feedforward sublayer.
-    FFN(x) = max(0, xW1 + b1)W2 + b2
-    """
+    '''
+    实现 position-wise feedforward 子层
+        FFN(x) = max(0, xW1 + b1)W2 + b2
+    '''
 
     def __init__(self, d_model, d_ff, dropout=0.1):
         super(PositionwiseFeedForward, self).__init__()
@@ -54,7 +68,9 @@ class PositionwiseFeedForward(nn.Module):
 
 # Another implementation
 class PositionwiseFeedForwardUseConv(nn.Module):
-    """A two-feed-forward-layer module"""
+    '''
+    two-feed-forward-layer模块
+    '''
 
     def __init__(self, d_in, d_hid, dropout=0.1):
         super(PositionwiseFeedForwardUseConv, self).__init__()
