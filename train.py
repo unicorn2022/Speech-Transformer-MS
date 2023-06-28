@@ -26,9 +26,7 @@ from transformer.optimizer import TransformerOptimizer
 from transformer.transformer import Transformer
 from utils import parse_args, save_checkpoint, AverageMeter, get_logger
 
-summary_record = SummaryRecord(log_dir="./logs")
-
-def train_net(args):
+def train_net(args, summary_record):
     np.random.seed(7)
     checkpoint = args.checkpoint
     start_epoch = 0
@@ -66,21 +64,21 @@ def train_net(args):
     logger = get_logger()
 
     #Move to GPU, if available
-    model = model.to(cfg.device)
+    # model = model.to(cfg.device)
     
     # Custom dataloaders
     train_dataset = AiShellDataset(args, 'train')
-    train_loader = ds.GeneratorDataset(train_dataset, column_names=["feature", "trn"], shuffle=True)
+    train_loader = ds.GeneratorDataset(train_dataset, column_names=["feature", "trn"], num_parallel_workers=args.num_workers, shuffle=True)
+    train_loader = train_loader.map(input_columns=["feature"], operations=T.PadEnd([cfg.input_dim, cfg.input_dim], 0))
+    train_loader = train_loader.map(input_columns=["feature"], operations=T.TypeCast(mstype.float32))
     train_loader = train_loader.batch(batch_size=args.batch_size, drop_remainder=True)
-    train_loader = train_loader.map(input_columns=["feature"], operations=[T.PadEnd([cfg.input_dim], 0)])
-    train_loader = train_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
+    
     
     valid_dataset = AiShellDataset(args, 'dev')
-    valid_loader = ds.GeneratorDataset(valid_dataset, column_names=["feature", "trn"], shuffle=False)
-    valid_loader = valid_loader.batch(args.batch_size, drop_remainder=True)
-    valid_loader = valid_loader.map(input_columns=["feature"], operations=[T.PadEnd([cfg.input_dim], 0)])
-    valid_loader = valid_loader.map(input_columns=["feature"], operations=[T.TypeCast(mstype.float32)])
-
+    valid_loader = ds.GeneratorDataset(valid_dataset, column_names=["feature", "trn"], num_parallel_workers=args.num_workers, shuffle=False)
+    valid_loader = valid_loader.batch(batch_size=args.batch_size, drop_remainder=True)
+    valid_loader = valid_loader.map(input_columns=["feature"], operations=T.PadEnd([cfg.input_dim], 0))
+    valid_loader = valid_loader.map(input_columns=["feature"], operations=T.TypeCast(mstype.float32))
     # Epochs
     for epoch in range(start_epoch, args.epochs):
         # One epoch's training
@@ -122,12 +120,12 @@ def train(train_loader, model, optimizer, epoch, logger):
     losses = AverageMeter()
 
     # Batches
-    for i, (data) in enumerate(train_loader):
+    for i, data in enumerate(train_loader):
         # Move to GPU, if available
         padded_input, padded_target, input_lengths = data
-        padded_input = padded_input.to(device)
-        padded_target = padded_target.to(device)
-        input_lengths = input_lengths.to(device)
+        # padded_input = padded_input.to(device)
+        # padded_target = padded_target.to(device)
+        # input_lengths = input_lengths.to(device)
 
         # Forward prop.
         pred, gold = model(padded_input, input_lengths, padded_target)
@@ -178,14 +176,15 @@ def valid(valid_loader, model, logger):
     return losses.avg
 
 
-def main():
+def main(summary_record):
     global args
     args = parse_args()
-    train_net(args)
+    train_net(args, summary_record)
 
 
 if __name__ == '__main__':
-    main()
+    summary_record = SummaryRecord(log_dir="./logs")
+    main(summary_record)
 
 # import numpy as np
 # import torch
