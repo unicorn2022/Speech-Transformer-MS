@@ -60,16 +60,16 @@ if __name__ == '__main__':
         for hyp in nbest_hyps:
             out = hyp['yseq']
             out = [char_list[idx] for idx in out if idx not in (sos_id, eos_id)]
-            out = ''.join(out)
+            out = ' '.join(out)
             hyp_list.append(out)
-
-        print(hyp_list)
+        
+        print("hyp_list:\t", hyp_list)
 
         gt = [char_list[idx] for idx in trn if idx not in (sos_id, eos_id)]
-        gt = ''.join(gt)
+        gt = ' '.join(gt)
         gt_list = [gt]
 
-        print(gt_list)
+        print("gt_list:\t", gt_list)
 
         cer = cer_function(gt_list, hyp_list)
         total_cer += cer
