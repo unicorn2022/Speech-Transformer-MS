@@ -1,5 +1,93 @@
 # Speech Transformer
 
+## 1.上传数据至`data`文件夹，并解压缩
+
+```shell
+tar -zxvf ./LibriSpeech.tar
+```
+
+<img src="AssetMarkdown/image-20230628222412064.png" alt="image-20230628222412064" style="zoom:80%;" />
+
+<img src="AssetMarkdown/image-20230628220655258.png" alt="image-20230628220655258" style="zoom:80%;" />
+
+<img src="AssetMarkdown/image-20230628220703742.png" alt="image-20230628220703742" style="zoom:80%;" />
+
+## 2.预处理生成`.pickle`文件
+
+```shell
+python pre_process.py 
+```
+
+<img src="AssetMarkdown/image-20230628220648158.png" alt="image-20230628220648158" style="zoom:80%;" />
+
+## 3.开始模型训练
+
+```shell
+python train.py
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Introduction
 
 This is a PyTorch re-implementation of Speech-Transformer: A No-Recurrence Sequence-to-Sequence Model for Speech Recognition.
@@ -9,6 +97,7 @@ This is a PyTorch re-implementation of Speech-Transformer: A No-Recurrence Seque
 Aishell is an open-source Chinese Mandarin speech corpus published by Beijing Shell Shell Technology Co.,Ltd.
 
 400 people from different accent areas in China are invited to participate in the recording, which is conducted in a quiet indoor environment using high fidelity microphone and downsampled to 16kHz. The manual transcription accuracy is above 95%, through professional speech annotation and strict quality inspection. The data is free for academic use. We hope to provide moderate amount of data for new researchers in the field of speech recognition.
+
 ```
 @inproceedings{aishell_2017,
   title={AIShell-1: An Open-Source Mandarin Speech Corpus and A Speech Recognition Baseline},

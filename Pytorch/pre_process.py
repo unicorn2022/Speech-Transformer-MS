@@ -96,8 +96,8 @@ if __name__ == "__main__":
     data = dict()
     data['VOCAB'] = VOCAB
     data['IVOCAB'] = IVOCAB
-    data['dev'] = get_data('dev', args.n_samples["train"])
-    data['train'] = get_data('train', args.n_samples["dev"])
+    data['dev'] = get_data('dev', args.n_samples["dev"])
+    data['train'] = get_data('train', args.n_samples["train"])
     data['test'] = get_data('test', args.n_samples["test"])
     
     with open(pickle_file, 'wb') as file:
