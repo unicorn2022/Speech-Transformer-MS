@@ -104,7 +104,7 @@ class AiShellDataset(Dataset):
         wave = sample['wave']
         trn = sample['trn']
 
-        feature = extract_feature(input_file=wave, feature='fbank', dim=self.args.d_input, cmvn=True)
+        feature = extract_feature(input_file=wave, feature='mfcc', dim=self.args.d_input, cmvn=True)
         # zero mean and unit variance
         feature = (feature - feature.mean()) / feature.std()
         feature = spec_augment(feature)
