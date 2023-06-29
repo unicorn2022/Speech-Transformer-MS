@@ -28,7 +28,7 @@ eos_id = 1
 num_train = 28539
 num_dev = 2703
 num_test = 2620
-vocab_size = 35663
+vocab_size = 35665
 
 DATA_DIR = 'data'
 librispeech_folder = 'data/LibriSpeech'
