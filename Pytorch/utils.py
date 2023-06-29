@@ -207,9 +207,9 @@ def extract_feature(input_file, feature='fbank', dim=80, cmvn=True, delta=False,
                                               n_fft=ws, hop_length=st)
         feat = np.log(feat + 1e-6)
     elif feature == 'mfcc':
-        feat = librosa.feature.mfcc(y=yt, sr=sr, n_mfcc=dim, n_mels=26,
+        feat = librosa.feature.mfcc(y=yt, sr=sr, n_mfcc=dim, n_mels=dim,
                                     n_fft=ws, hop_length=st)
-        feat[0] = librosa.feature.rmse(yt, hop_length=st, frame_length=ws)
+        # feat[0] = librosa.feature.rmse(yt, hop_length=st, frame_length=ws)
 
     else:
         raise ValueError('Unsupported Acoustic Feature: ' + feature)
