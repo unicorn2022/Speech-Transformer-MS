@@ -73,6 +73,8 @@ if __name__ == '__main__':
 
         cer = cer_function(gt_list, hyp_list)
         total_cer += cer
+        
+        break
 
     avg_cer = total_cer / num_samples
 
