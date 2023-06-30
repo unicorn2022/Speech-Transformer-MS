@@ -21,7 +21,7 @@ class Decoder(nn.Module):
     :param eos_id:          <end_of_seq>的id
     :param n_tgt_vocab:     目标语言词表的大小
     :param d_word_vec:      词向量的维度
-    :param n_layers:        编码器的层数
+    :param n_layers:        解码器的层数
     :param n_head:          多头注意力的向下投影的次数
     :param d_k:             多头注意力中Q、K的维度
     :param d_v:             多头注意力中V的维度
@@ -123,7 +123,7 @@ class Decoder(nn.Module):
         # 获取预处理后的decoder的输入和输出序列
         ys_in_pad, ys_out_pad = self.preprocess(padded_input)
 
-        # 计算由于由于padding产生的mask
+        # 计算由于padding产生的mask
         non_pad_mask = get_non_pad_mask(ys_in_pad, pad_idx=self.eos_id)
 
         # 计算自注意力的mask = 由于时间产生的mask + 由于padding产生的mask

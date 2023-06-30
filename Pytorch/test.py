@@ -47,7 +47,7 @@ if __name__ == '__main__':
         wave = sample['wave']
         trn = sample['trn']
 
-        feature = extract_feature(input_file=wave, feature='fbank', dim=input_dim, cmvn=True)
+        feature = extract_feature(input_file=wave, feature='mfcc', dim=input_dim, cmvn=True)
         feature = build_LFR_features(feature, m=LFR_m, n=LFR_n)
         # feature = np.expand_dims(feature, axis=0)
         input = torch.from_numpy(feature).to(device)

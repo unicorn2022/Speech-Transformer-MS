@@ -88,10 +88,10 @@ def spec_augment(spec: np.ndarray,
     return spec
 
 
-class AiShellDataset(Dataset):
+class LibriSpeechDataset(Dataset):
     def __init__(self, args, split):
         self.args = args
-        # this is where the problem exists, try printing data and compare it with the one on the chinese data set
+        
         with open(pickle_file, 'rb') as file:
             data = pickle.load(file)
             #print(data)
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     from tqdm import tqdm
 
     args = parse_args()
-    train_dataset = AiShellDataset(args, 'train')
+    train_dataset = LibriSpeechDataset(args, 'train')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=args.num_workers,
                                                collate_fn=pad_collate)
     #

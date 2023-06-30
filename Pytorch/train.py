@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from config import device, print_freq, vocab_size, sos_id, eos_id
-from data_gen import AiShellDataset, pad_collate
+from data_gen import LibriSpeechDataset, pad_collate
 from transformer.decoder import Decoder
 from transformer.encoder import Encoder
 from transformer.loss import cal_performance
@@ -57,10 +57,10 @@ def train_net(args):
     model = model.to(device)
 
     # Custom dataloaders
-    train_dataset = AiShellDataset(args, 'train')
+    train_dataset = LibriSpeechDataset(args, 'train')
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=pad_collate,
                                                pin_memory=True, shuffle=True, num_workers=args.num_workers)
-    valid_dataset = AiShellDataset(args, 'dev')
+    valid_dataset = LibriSpeechDataset(args, 'dev')
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=pad_collate,
                                                pin_memory=True, shuffle=False, num_workers=args.num_workers)
 

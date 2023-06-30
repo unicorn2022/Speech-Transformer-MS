@@ -25,7 +25,7 @@ class ScaledDotProductAttention(nn.Module):
         # Mask: 若mask中某一位为1, 则将attn中对应位置设置为-inf
         if mask is not None:
             attn = attn.masked_fill(mask.bool(), -np.inf)
-
+    
         # Softmax: 对attn进行softmax
         attn = self.softmax(attn)
         attn = self.dropout(attn)
